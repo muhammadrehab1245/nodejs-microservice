@@ -75,26 +75,26 @@ app.use(
 );
 
 //setting up proxy for our post service
-// app.use(
-//   "/v1/posts",
-//   validateToken,
-//   proxy(process.env.POST_SERVICE_URL, {
-//     ...proxyOptions,
-//     proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
-//       proxyReqOpts.headers["Content-Type"] = "application/json";
-//       proxyReqOpts.headers["x-user-id"] = srcReq.user.userId;
+app.use(
+  "/v1/posts",
+  validateToken,
+  proxy(process.env.POST_SERVICE_URL, {
+    ...proxyOptions,
+    proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
+      proxyReqOpts.headers["Content-Type"] = "application/json";
+      proxyReqOpts.headers["x-user-id"] = srcReq.user.userId;
 
-//       return proxyReqOpts;
-//     },
-//     userResDecorator: (proxyRes, proxyResData, userReq, userRes) => {
-//       logger.info(
-//         `Response received from Post service: ${proxyRes.statusCode}`
-//       );
+      return proxyReqOpts;
+    },
+    userResDecorator: (proxyRes, proxyResData, userReq, userRes) => {
+      logger.info(
+        `Response received from Post service: ${proxyRes.statusCode}`
+      );
 
-//       return proxyResData;
-//     },
-//   })
-// );
+      return proxyResData;
+    },
+  })
+);
 
 //setting up proxy for our media service
 // app.use(
@@ -150,9 +150,9 @@ app.listen(PORT, () => {
   logger.info(
     `Identity service is running on port ${process.env.IDENTITY_SERVICE_URL}`
   );
-  // logger.info(
-  //   `Post service is running on port ${process.env.POST_SERVICE_URL}`
-  // );
+  logger.info(
+    `Post service is running on port ${process.env.POST_SERVICE_URL}`
+  );
   // logger.info(
   //   `Media service is running on port ${process.env.MEDIA_SERVICE_URL}`
   // );
