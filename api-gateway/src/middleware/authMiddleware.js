@@ -4,7 +4,7 @@ const jwt = require("jsonwebtoken");
 const validateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
-
+  console.log("token::", token);
   if (!token) {
     logger.warn("Access attempt without valid token!");
     return res.status(401).json({

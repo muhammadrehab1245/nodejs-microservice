@@ -1,16 +1,16 @@
 require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
-const Redis = require("ioredis");
 const cors = require("cors");
 const helmet = require("helmet");
-const postRoutes = require("./routes/post-routes");
+const mediaRoutes = require("./routes/media-routes");
 const errorHandler = require("./middleware/errorHandler");
 const logger = require("./utils/logger");
-const { connectToRabbitMQ } = require("./utils/rabbitmq");
+const { connectToRabbitMQ, consumeEvent } = require("./utils/rabbitmq");
+const { handlePostDeleted } = require("./eventHandlers/media-event-handlers");
 
 const app = express();
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT || 3003;
 
 //connect to mongodb
 mongoose
@@ -18,11 +18,8 @@ mongoose
   .then(() => logger.info("Connected to mongodb"))
   .catch((e) => logger.error("Mongo connection error", e));
 
-const redisClient = new Redis(process.env.REDIS_URL);
-
-//middleware
-app.use(helmet());
 app.use(cors());
+app.use(helmet());
 app.use(express.json());
 
 app.use((req, res, next) => {
@@ -33,23 +30,19 @@ app.use((req, res, next) => {
 
 //*** Homework - implement Ip based rate limiting for sensitive endpoints
 
-//routes -> pass redisclient to routes
-app.use(
-  "/api/posts",
-  (req, res, next) => {
-    req.redisClient = redisClient;
-    next();
-  },
-  postRoutes
-);
+app.use("/api/media", mediaRoutes);
 
 app.use(errorHandler);
 
 async function startServer() {
   try {
     await connectToRabbitMQ();
+
+    // //consume all the events
+    await consumeEvent("post.deleted", handlePostDeleted);
+
     app.listen(PORT, () => {
-      logger.info(`Post service running on port ${PORT}`);
+      logger.info(`Media service running on port ${PORT}`);
     });
   } catch (error) {
     logger.error("Failed to connect to server", error);
