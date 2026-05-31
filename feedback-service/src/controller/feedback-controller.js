@@ -155,9 +155,55 @@ const getPostLikes = async (req, res) => {
   }
 };
 
+const deleteComment = async (req, res) => {
+  logger.info("Delete comment endpoint hit");
+
+  try {
+    const { commentId } = req.params;
+    const { userId } = req.user;
+
+    const comment = await Comment.findById(commentId);
+    if (!comment) {
+      return res.status(404).json({
+        success: false,
+        message: "Comment not found",
+      });
+    }
+
+    if (comment.userId !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the comment owner can delete this comment",
+      });
+    }
+
+    const { postId } = comment;
+    const correlationId = crypto.randomUUID();
+    const validationPromise = waitForValidation(correlationId);
+
+    await publishEvent("feedback.removed", {
+      postId,
+      userId,
+      correlationId,
+    });
+
+    await validationPromise;
+
+    await Comment.findByIdAndDelete(commentId);
+
+    logger.info(`Comment ${commentId} removed by user ${userId}`);
+    res.status(200).json({
+      success: true,
+      message: "Comment deleted successfully",
+    });
+  } catch (error) {
+    handleValidationError(res, error, "comment deletion");
+  }
+};
+
 const deleteLike = async (req, res) => {
   logger.info("Delete like endpoint hit");
-f
+
   try {
     const { postId } = req.params;
     const { userId } = req.user;
@@ -194,4 +240,10 @@ f
   }
 };
 
-module.exports = { createLike, createComment, deleteLike, getPostLikes };
+module.exports = {
+  createLike,
+  createComment,
+  deleteComment,
+  deleteLike,
+  getPostLikes,
+};

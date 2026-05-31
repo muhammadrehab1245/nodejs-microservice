@@ -2,6 +2,7 @@ const express = require("express");
 const {
     createLike,
     createComment,
+    deleteComment,
     deleteLike,
     getPostLikes,
 } = require("../controller/feedback-controller");
@@ -13,6 +14,7 @@ const router = express();
 router.use(authenticateRequest);
 
 router.post("/posts/:postId/comments", createComment);
+router.delete("/comments/:commentId", deleteComment);
 router.get("/posts/:postId/likes", getPostLikes);
 router.get("/posts/:postId/like", createLike);
 router.delete("/posts/:postId/like", deleteLike);
