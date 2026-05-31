@@ -1,27 +1,33 @@
 require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
+const Redis = require("ioredis");
 const cors = require("cors");
 const helmet = require("helmet");
-const mediaRoutes = require("./routes/media-routes");
 const errorHandler = require("./middleware/errorHandler");
 const logger = require("./utils/logger");
 const { connectToRabbitMQ, consumeEvent } = require("./utils/rabbitmq");
-const { handlePostDeleted } = require("./eventHandlers/media-event-handlers");
+const {
+  handleValidated,
+  handleRejected,
+} = require("./eventHandlers/feedback-event-handlers");
+const feedbackRoutes = require("./routes/feedback-routes");
 const { rateLimit } = require("express-rate-limit");
 const { RedisStore } = require("rate-limit-redis");
-const Redis = require("ioredis");
 const app = express();
-const PORT = process.env.PORT || 3003;
-const redisClient = new Redis(process.env.REDIS_URL);
+const PORT = process.env.PORT || 3005;
+
 //connect to mongodb
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => logger.info("Connected to mongodb"))
   .catch((e) => logger.error("Mongo connection error", e));
 
-app.use(cors());
+const redisClient = new Redis(process.env.REDIS_URL);
+
+//middleware
 app.use(helmet());
+app.use(cors());
 app.use(express.json());
 
 app.use((req, res, next) => {
@@ -29,8 +35,6 @@ app.use((req, res, next) => {
   logger.info(`Request body, ${req.body}`);
   next();
 });
-
-//*** Homework - implement Ip based rate limiting for sensitive endpoints
 
 const sensitiveEndpointsLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -46,7 +50,14 @@ const sensitiveEndpointsLimiter = rateLimit({
   }),
 });
 
-app.use("/api/media", sensitiveEndpointsLimiter, mediaRoutes);
+app.use(
+  "/api/feedback",
+  (req, res, next) => {
+    req.redisClient = redisClient;
+    next();
+  },
+  feedbackRoutes,
+);
 
 app.use(errorHandler);
 
@@ -54,22 +65,19 @@ async function startServer() {
   try {
     await connectToRabbitMQ();
 
-    // //consume all the events
-    await consumeEvent("post.deleted", handlePostDeleted);
-
+    await consumeEvent("feedback.validated", (event) =>
+      handleValidated(event, "feedback.validated"),
+    );
+    await consumeEvent("feedback.rejected", (event) =>
+      handleRejected(event, "feedback.rejected"),
+    );
     app.listen(PORT, () => {
-      logger.info(`Media service running on port ${PORT}`);
+      logger.info(`Feedback service is running on port: ${PORT}`);
     });
-  } catch (error) {
-    logger.error("Failed to connect to server", error);
+  } catch (e) {
+    logger.error(e, "Failed to start feedback service");
     process.exit(1);
   }
 }
 
 startServer();
-
-//unhandled promise rejection
-
-process.on("unhandledRejection", (reason, promise) => {
-  logger.error("Unhandled Rejection at", promise, "reason:", reason);
-});

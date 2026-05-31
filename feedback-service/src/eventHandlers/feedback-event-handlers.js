@@ -1,0 +1,47 @@
+const logger = require("../utils/logger");
+const {
+  resolveValidation,
+  rejectValidation,
+} = require("../utils/like-pending");
+
+const REJECTION_MESSAGES = {
+  POST_NOT_FOUND: "Post not found",
+  VALIDATION_ERROR: "Validation error",
+};
+
+async function handleValidated(event, routingKey) {
+  try {
+    const { correlationId, postId, userId } = event;
+
+    if (!correlationId) {
+      logger.warn(`${routingKey} missing correlationId`, event);
+      return;
+    }
+
+    logger.info(`${routingKey} validated for post ${postId} by user ${userId}`);
+    resolveValidation(correlationId, event);
+  } catch (error) {
+    logger.error(`Error handling ${routingKey} event`, error);
+  }
+}
+
+async function handleRejected(event, routingKey) {
+  try {
+    const { correlationId, reason } = event;
+
+    if (!correlationId) {
+      logger.warn(`${routingKey} missing correlationId`, event);
+      return;
+    }
+
+    logger.warn(`${routingKey} rejected: ${reason}`, event);
+    rejectValidation(correlationId, {
+      reason: reason,
+      message: REJECTION_MESSAGES[reason] || "Request rejected",
+    });
+  } catch (error) {
+    logger.error(`Error handling ${routingKey} event`, error);
+  }
+}
+
+module.exports = { handleValidated, handleRejected };

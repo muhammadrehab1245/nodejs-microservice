@@ -1,5 +1,5 @@
 {
-  "name": "media-service",
+  "name": "feedback-service",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
@@ -12,18 +12,16 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "amqplib": "^1.0.3",
-    "cloudinary": "^2.10.0",
+    "amqplib": "^2.0.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
-    "helmet": "^8.1.0",
-    "ioredis": "^5.10.1",
-    "joi": "^18.1.2",
+    "helmet": "^8.2.0",
+    "ioredis": "^5.11.0",
+    "joi": "^18.2.1",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "^8.23.1",
-    "multer": "^2.1.1",
+    "mongoose": "^8.24.0",
     "rate-limit-redis": "^5.0.0",
     "winston": "^3.19.0"
   }

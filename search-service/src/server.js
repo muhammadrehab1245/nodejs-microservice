@@ -1,27 +1,34 @@
 require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
+const Redis = require("ioredis");
 const cors = require("cors");
 const helmet = require("helmet");
-const mediaRoutes = require("./routes/media-routes");
 const errorHandler = require("./middleware/errorHandler");
 const logger = require("./utils/logger");
 const { connectToRabbitMQ, consumeEvent } = require("./utils/rabbitmq");
-const { handlePostDeleted } = require("./eventHandlers/media-event-handlers");
+const searchRoutes = require("./routes/search-routes");
+const {
+  handlePostCreated,
+  handlePostDeleted,
+} = require("./eventHandlers/search-event-handlers");
 const { rateLimit } = require("express-rate-limit");
 const { RedisStore } = require("rate-limit-redis");
-const Redis = require("ioredis");
+
 const app = express();
-const PORT = process.env.PORT || 3003;
-const redisClient = new Redis(process.env.REDIS_URL);
+const PORT = process.env.PORT || 3004;
+
 //connect to mongodb
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => logger.info("Connected to mongodb"))
   .catch((e) => logger.error("Mongo connection error", e));
 
-app.use(cors());
+const redisClient = new Redis(process.env.REDIS_URL);
+
+//middleware
 app.use(helmet());
+app.use(cors());
 app.use(express.json());
 
 app.use((req, res, next) => {
@@ -46,7 +53,16 @@ const sensitiveEndpointsLimiter = rateLimit({
   }),
 });
 
-app.use("/api/media", sensitiveEndpointsLimiter, mediaRoutes);
+//*** Homework - pass redis client as part of your req and then implement redis caching
+app.use(
+  "/api/search",
+  (req, res, next) => {
+    req.redisClient = redisClient;
+    next();
+  },
+  sensitiveEndpointsLimiter,
+  searchRoutes,
+);
 
 app.use(errorHandler);
 
@@ -54,22 +70,17 @@ async function startServer() {
   try {
     await connectToRabbitMQ();
 
-    // //consume all the events
+    //consume the events / subscribe to the events
+    await consumeEvent("post.created", handlePostCreated);
     await consumeEvent("post.deleted", handlePostDeleted);
 
     app.listen(PORT, () => {
-      logger.info(`Media service running on port ${PORT}`);
+      logger.info(`Search service is running on port: ${PORT}`);
     });
-  } catch (error) {
-    logger.error("Failed to connect to server", error);
+  } catch (e) {
+    logger.error(e, "Failed to start search service");
     process.exit(1);
   }
 }
 
 startServer();
-
-//unhandled promise rejection
-
-process.on("unhandledRejection", (reason, promise) => {
-  logger.error("Unhandled Rejection at", promise, "reason:", reason);
-});
