@@ -130,6 +130,37 @@ const createComment = async (req, res) => {
   }
 };
 
+const getPostComments = async (req, res) => {
+  logger.info("Get post comments endpoint hit");
+
+  try {
+    const { postId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const [comments, total] = await Promise.all([
+      Comment.find({ postId })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Comment.countDocuments({ postId }),
+    ]);
+
+    res.status(200).json({
+      comments,
+      total,
+      page,
+    });
+  } catch (error) {
+    logger.error("Error fetching post comments", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error",
+    });
+  }
+};
+
 const getPostLikes = async (req, res) => {
   logger.info("Get post likes endpoint hit");
 
@@ -245,5 +276,6 @@ module.exports = {
   createComment,
   deleteComment,
   deleteLike,
+  getPostComments,
   getPostLikes,
 };
