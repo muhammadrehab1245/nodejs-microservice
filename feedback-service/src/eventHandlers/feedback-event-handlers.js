@@ -3,7 +3,8 @@ const {
   resolveValidation,
   rejectValidation,
 } = require("../utils/like-pending");
-
+const Like = require("../models/Like");
+const Comment = require("../models/Comment");
 const REJECTION_MESSAGES = {
   POST_NOT_FOUND: "Post not found",
   VALIDATION_ERROR: "Validation error",
@@ -44,4 +45,20 @@ async function handleRejected(event, routingKey) {
   }
 }
 
-module.exports = { handleValidated, handleRejected };
+const handlePostDeleted = async (event) => {
+  console.log(event, "eventeventevent");
+  const { postId } = event;
+  try {
+
+    await Promise.all([
+      Like.deleteMany({ postId }),
+      Comment.deleteMany({ postId }),
+    ]);
+
+    logger.info(`Processed deletion of feedback for post id ${postId}`);
+  } catch (e) {
+    logger.error(e, "Error occured while feedback deletion");
+  }
+};
+
+module.exports = { handleValidated, handleRejected, handlePostDeleted };

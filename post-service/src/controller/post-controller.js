@@ -40,6 +40,7 @@ const createPost = async (req, res) => {
       userId: newlyCreatedPost.user.toString(),
       content: newlyCreatedPost.content,
       createdAt: newlyCreatedPost.createdAt,
+      mediaIds: newlyCreatedPost.mediaIds,
     });
 
     await invalidatePostCache(req, newlyCreatedPost._id.toString());

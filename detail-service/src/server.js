@@ -66,18 +66,14 @@ async function startServer() {
   try {
     await connectToRabbitMQ();
 
-    await consumeEvent("feedback.validated", (event) =>
-      handleValidated(event, "feedback.validated"),
-    );
-    await consumeEvent("feedback.rejected", (event) =>
-      handleRejected(event, "feedback.rejected"),
-    );
-    await consumeEvent("post.deleted",handlePostDeleted);
+    await consumeEvent("post.created", handlePostCreated);
+    await consumeEvent("post.deleted", handlePostDeleted);
+
     app.listen(PORT, () => {
-      logger.info(`Feedback service is running on port: ${PORT}`);
+      logger.info(`Detail service is running on port: ${PORT}`);
     });
   } catch (e) {
-    logger.error(e, "Failed to start feedback service");
+    logger.error(e, "Failed to start detail service");
     process.exit(1);
   }
 }
