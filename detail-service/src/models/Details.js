@@ -25,10 +25,6 @@ const detailsSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
-    likeCount: {
-      type: Number,
-      default: 0,
-    },
     likes: [
       {
         type: String,

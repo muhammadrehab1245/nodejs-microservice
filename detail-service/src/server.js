@@ -8,11 +8,12 @@ const errorHandler = require("./middleware/errorHandler");
 const logger = require("./utils/logger");
 const { connectToRabbitMQ, consumeEvent } = require("./utils/rabbitmq");
 const {
-  handleValidated,
-  handleRejected,
+  handlePostCreated,
   handlePostDeleted,
-} = require("./eventHandlers/feedback-event-handlers");
-const feedbackRoutes = require("./routes/feedback-routes");
+  handleFeedbackAdded,
+  handleFeedbackRemoved,
+} = require("./eventHandlers/detail-event-handlers");
+const detailRoutes = require("./routes/detail-routes");
 const { rateLimit } = require("express-rate-limit");
 const { RedisStore } = require("rate-limit-redis");
 const app = express();
@@ -52,12 +53,13 @@ const sensitiveEndpointsLimiter = rateLimit({
 });
 
 app.use(
-  "/api/feedback",
+  "/api/detail",
   (req, res, next) => {
     req.redisClient = redisClient;
     next();
   },
-  feedbackRoutes,
+  sensitiveEndpointsLimiter,
+  detailRoutes,
 );
 
 app.use(errorHandler);
@@ -68,6 +70,8 @@ async function startServer() {
 
     await consumeEvent("post.created", handlePostCreated);
     await consumeEvent("post.deleted", handlePostDeleted);
+    await consumeEvent("feedback.added", handleFeedbackAdded);
+    await consumeEvent("feedback.removed", handleFeedbackRemoved);
 
     app.listen(PORT, () => {
       logger.info(`Detail service is running on port: ${PORT}`);

@@ -48,7 +48,7 @@ const createLike = async (req, res) => {
   try {
     const { postId } = req.params;
     const { userId } = req.user;
-
+    console.log("userId::", userId);
     const existingLike = await Like.findOne({ postId, userId });
     if (existingLike) {
       return res.status(409).json({
@@ -73,6 +73,14 @@ const createLike = async (req, res) => {
       userId,
     });
     await newLike.save();
+
+    await publishEvent("detail.feedback.added", {
+      FeedbackType: "LIKE",
+      postId,
+      userId,
+      likeId: newLike._id.toString(),
+      createdAt: newLike.createdAt,
+    });
 
     logger.info("Liked successfully", newLike);
     res.status(201).json({
@@ -119,7 +127,17 @@ const createComment = async (req, res) => {
       text,
     });
 
+    await publishEvent("detail.feedback.added", {
+      FeedbackType: "COMMENT",
+      postId,
+      userId,
+      commentId: comment._id.toString(),
+      text: comment.text,
+      createdAt: comment.createdAt,
+    });
+
     logger.info("Comment created successfully", comment);
+    
     res.status(201).json({
       success: true,
       message: "Comment created successfully",
@@ -222,6 +240,15 @@ const deleteComment = async (req, res) => {
 
     await Comment.findByIdAndDelete(commentId);
 
+    await publishEvent("detail.feedback.removed", {
+      FeedbackType: "COMMENT",
+      postId,
+      userId,
+      commentId,
+      text: comment.text,
+      createdAt: comment.createdAt,
+    });
+
     logger.info(`Comment ${commentId} removed by user ${userId}`);
     res.status(200).json({
       success: true,
@@ -259,6 +286,14 @@ const deleteLike = async (req, res) => {
     await validationPromise;
 
     await Like.findOneAndDelete({ postId, userId });
+
+    await publishEvent("detail.feedback.removed", {
+      FeedbackType: "LIKE",
+      postId,
+      userId,
+      likeId: existingLike._id.toString(),
+      createdAt: existingLike.createdAt,
+    });
 
     logger.info(`Like removed for post ${postId} by user ${userId}`);
     res.status(200).json({
