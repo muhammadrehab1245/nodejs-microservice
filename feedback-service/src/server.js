@@ -57,6 +57,7 @@ app.use(
     req.redisClient = redisClient;
     next();
   },
+  sensitiveEndpointsLimiter,
   feedbackRoutes,
 );
 

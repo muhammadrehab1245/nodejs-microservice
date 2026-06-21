@@ -4,47 +4,79 @@ const logger = require("../utils/logger");
 const getPostDetails = async (req, res) => {
   logger.info("Get post details endpoint hit");
 
-//   try {
-//     const { error } = validateCommentOnPost(req.body);
-//     if (error) {
-//       logger.warn("Comment validation error", error.details[0].message);
-//       return res.status(400).json({
-//         success: false,
-//         message: error.details[0].message,
-//       });
-//     }
+  try {
+    const { postId } = req.params;
+    const { userId } = req.user;
+    const cacheKey = `post-details:${postId}`;
 
-//     const { postId } = req.params;
-//     const { userId } = req.user;
-//     const { text } = req.body;
+    const cached = await req.redisClient.get(cacheKey);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      parsed.feedback.likedByCurrentUser = parsed._likes?.includes(userId) ?? false;
+      delete parsed._likes;
+      return res.status(200).json(parsed);
+    }
 
-//     const correlationId = crypto.randomUUID();
-//     const validationPromise = waitForValidation(correlationId);
+    const detail = await Detail.findOne({ postId });
 
-//     await publishEvent("feedback.added", {
-//       postId,
-//       userId,
-//       correlationId,
-//     });
+    if (!detail) {
+      return res.status(404).json({
+        success: false,
+        message: "Post not found",
+      });
+    }
 
-//     await validationPromise;
+    const likeCount = detail.likes.length;
+    const commentCount = detail.comments.length;
+    const likedByCurrentUser = detail.likes.includes(userId);
 
-//     const comment = await Comment.create({
-//       postId,
-//       userId,
-//       text,
-//     });
+    const comments = [...detail.comments]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .map(({ commentId, userId: commentUserId, text, createdAt }) => ({
+        commentId,
+        userId: commentUserId,
+        text,
+        createdAt,
+      }));
 
-//     logger.info("Comment created successfully", comment);
-//     res.status(201).json({
-//       success: true,
-//       message: "Comment created successfully",
-//       comment,
-//     });
-//   } catch (error) {
-//     handleValidationError(res, error, "comment");
-//   }
-}; 
+    const response = {
+      success: true,
+      post: {
+        id: detail.postId,
+        content: detail.content,
+        mediaIds: detail.mediaIds,
+        createdAt: detail.postCreatedAt,
+        userId: detail.userId,
+      },
+      author: {
+        userId: detail.userId,
+      },
+      feedback: {
+        likeCount,
+        commentCount,
+        likedByCurrentUser,
+      },
+      comments: {
+        items: comments,
+        total: commentCount,
+      },
+    };
+
+    await req.redisClient.setex(
+      cacheKey,
+      300,
+      JSON.stringify({ ...response, _likes: detail.likes }),
+    );
+
+    res.status(200).json(response);
+  } catch (error) {
+    logger.error("Error fetching post details", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error",
+    });
+  }
+};
 
 module.exports = {
   getPostDetails,

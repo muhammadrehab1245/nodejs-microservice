@@ -46,7 +46,15 @@ const sensitiveEndpointsLimiter = rateLimit({
   }),
 });
 
-app.use("/api/media", sensitiveEndpointsLimiter, mediaRoutes);
+app.use(
+  "/api/media",
+  (req, res, next) => {
+    req.redisClient = redisClient;
+    next();
+  },
+  sensitiveEndpointsLimiter,
+  mediaRoutes,
+);
 
 app.use(errorHandler);
 

@@ -17,7 +17,7 @@ const detailRoutes = require("./routes/detail-routes");
 const { rateLimit } = require("express-rate-limit");
 const { RedisStore } = require("rate-limit-redis");
 const app = express();
-const PORT = process.env.PORT || 3005;
+const PORT = process.env.PORT || 3006;
 
 //connect to mongodb
 mongoose
@@ -68,10 +68,25 @@ async function startServer() {
   try {
     await connectToRabbitMQ();
 
+    const invalidateCache = async (event) => {
+      if (event?.postId) {
+        await redisClient.del(`post-details:${event.postId}`);
+      }
+    };
+
     await consumeEvent("post.created", handlePostCreated);
-    await consumeEvent("post.deleted", handlePostDeleted);
-    await consumeEvent("feedback.added", handleFeedbackAdded);
-    await consumeEvent("feedback.removed", handleFeedbackRemoved);
+    await consumeEvent("post.deleted", async (event) => {
+      await handlePostDeleted(event);
+      await invalidateCache(event);
+    });
+    await consumeEvent("detail.feedback.added", async (event) => {
+      await handleFeedbackAdded(event);
+      await invalidateCache(event);
+    });
+    await consumeEvent("detail.feedback.removed", async (event) => {
+      await handleFeedbackRemoved(event);
+      await invalidateCache(event);
+    });
 
     app.listen(PORT, () => {
       logger.info(`Detail service is running on port: ${PORT}`);

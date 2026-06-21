@@ -36,6 +36,8 @@ const uploadMedia = async (req, res) => {
 
     await newlyCreatedMedia.save();
 
+    await req.redisClient.del(`media:user:${userId}`);
+
     res.status(201).json({
       success: true,
       mediaId: newlyCreatedMedia._id,
@@ -53,7 +55,15 @@ const uploadMedia = async (req, res) => {
 
 const getAllMedias = async (req, res) => {
   try {
-    const result = await Media.find({ userId: req.user.userId });
+    const { userId } = req.user;
+    const cacheKey = `media:user:${userId}`;
+
+    const cached = await req.redisClient.get(cacheKey);
+    if (cached) {
+      return res.status(200).json(JSON.parse(cached));
+    }
+
+    const result = await Media.find({ userId });
 
     if (result.length === 0) {
       return res.status(404).json({
@@ -62,11 +72,15 @@ const getAllMedias = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    const response = {
       success: true,
       media: result,
       message: "Medias fetched successfully",
-    });
+    };
+
+    await req.redisClient.setex(cacheKey, 300, JSON.stringify(response));
+
+    res.status(200).json(response);
   } catch (e) {
     logger.error("Error fetching medias", error);
     res.status(500).json({

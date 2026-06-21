@@ -143,6 +143,28 @@ app.use(
   }),
 );
 
+//setting up proxy for our detail service
+app.use(
+  "/v1/detail",
+  validateToken,
+  proxy(process.env.DETAIL_SERVICE_URL, {
+    ...proxyOptions,
+    proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
+      proxyReqOpts.headers["Content-Type"] = "application/json";
+      proxyReqOpts.headers["x-user-id"] = srcReq.user.userId;
+
+      return proxyReqOpts;
+    },
+    userResDecorator: (proxyRes, proxyResData, userReq, userRes) => {
+      logger.info(
+        `Response received from Detail service: ${proxyRes.statusCode}`,
+      );
+
+      return proxyResData;
+    },
+  }),
+);
+
 //setting up proxy for our feedback service
 app.use(
   "/v1/feedback",
@@ -180,6 +202,12 @@ app.listen(PORT, () => {
   );
   logger.info(
     `Search service is running on port ${process.env.SEARCH_SERVICE_URL}`,
+  );
+  logger.info(
+    `Feedback service is running on port ${process.env.FEEDBACK_SERVICE_URL}`,
+  );
+  logger.info(
+    `Detail service is running on port ${process.env.DETAIL_SERVICE_URL}`,
   );
   logger.info(`Redis Url ${process.env.REDIS_URL}`);
 });

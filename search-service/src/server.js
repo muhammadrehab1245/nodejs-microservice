@@ -12,6 +12,7 @@ const {
   handlePostCreated,
   handlePostDeleted,
 } = require("./eventHandlers/search-event-handlers");
+const { invalidateSearchCache } = require("./utils/cache");
 const { rateLimit } = require("express-rate-limit");
 const { RedisStore } = require("rate-limit-redis");
 
@@ -71,8 +72,14 @@ async function startServer() {
     await connectToRabbitMQ();
 
     //consume the events / subscribe to the events
-    await consumeEvent("post.created", handlePostCreated);
-    await consumeEvent("post.deleted", handlePostDeleted);
+    await consumeEvent("post.created", async (event) => {
+      await handlePostCreated(event);
+      await invalidateSearchCache(redisClient);
+    });
+    await consumeEvent("post.deleted", async (event) => {
+      await handlePostDeleted(event);
+      await invalidateSearchCache(redisClient);
+    });
 
     app.listen(PORT, () => {
       logger.info(`Search service is running on port: ${PORT}`);

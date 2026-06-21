@@ -5,6 +5,7 @@ const logger = require("../utils/logger");
 const { publishEvent } = require("../utils/rabbitmq");
 const { waitForValidation } = require("../utils/like-pending");
 const { validateCommentOnPost } = require("../utils/validation");
+const { invalidatePostFeedbackCache } = require("../utils/cache");
 
 function handleValidationError(res, error, action) {
   if (error.reason === "POST_NOT_FOUND") {
@@ -82,6 +83,8 @@ const createLike = async (req, res) => {
       createdAt: newLike.createdAt,
     });
 
+    await invalidatePostFeedbackCache(req.redisClient, postId);
+
     logger.info("Liked successfully", newLike);
     res.status(201).json({
       success: true,
@@ -136,6 +139,8 @@ const createComment = async (req, res) => {
       createdAt: comment.createdAt,
     });
 
+    await invalidatePostFeedbackCache(req.redisClient, postId);
+
     logger.info("Comment created successfully", comment);
     
     res.status(201).json({
@@ -156,6 +161,12 @@ const getPostComments = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
+    const cacheKey = `comments:${postId}:${page}:${limit}`;
+
+    const cached = await req.redisClient.get(cacheKey);
+    if (cached) {
+      return res.status(200).json(JSON.parse(cached));
+    }
 
     const [comments, total] = await Promise.all([
       Comment.find({ postId })
@@ -165,11 +176,11 @@ const getPostComments = async (req, res) => {
       Comment.countDocuments({ postId }),
     ]);
 
-    res.status(200).json({
-      comments,
-      total,
-      page,
-    });
+    const result = { comments, total, page };
+
+    await req.redisClient.setex(cacheKey, 180, JSON.stringify(result));
+
+    res.status(200).json(result);
   } catch (error) {
     logger.error("Error fetching post comments", error);
     res.status(500).json({
@@ -185,16 +196,26 @@ const getPostLikes = async (req, res) => {
   try {
     const { postId } = req.params;
     const { userId } = req.user;
+    const cacheKey = `likes:${postId}:${userId}`;
+
+    const cached = await req.redisClient.get(cacheKey);
+    if (cached) {
+      return res.status(200).json(JSON.parse(cached));
+    }
 
     const [count, userLike] = await Promise.all([
       Like.countDocuments({ postId }),
       Like.findOne({ postId, userId }).select("_id"),
     ]);
 
-    res.status(200).json({
+    const result = {
       count,
       likedByCurrentUser: Boolean(userLike),
-    });
+    };
+
+    await req.redisClient.setex(cacheKey, 180, JSON.stringify(result));
+
+    res.status(200).json(result);
   } catch (error) {
     logger.error("Error fetching post likes", error);
     res.status(500).json({
@@ -249,6 +270,8 @@ const deleteComment = async (req, res) => {
       createdAt: comment.createdAt,
     });
 
+    await invalidatePostFeedbackCache(req.redisClient, postId);
+
     logger.info(`Comment ${commentId} removed by user ${userId}`);
     res.status(200).json({
       success: true,
@@ -294,6 +317,8 @@ const deleteLike = async (req, res) => {
       likeId: existingLike._id.toString(),
       createdAt: existingLike.createdAt,
     });
+
+    await invalidatePostFeedbackCache(req.redisClient, postId);
 
     logger.info(`Like removed for post ${postId} by user ${userId}`);
     res.status(200).json({
